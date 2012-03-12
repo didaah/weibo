@@ -1,0 +1,560 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * 实现新浪微博开放平台部分功能
+ */
+
+/**
+ * @Implement of hook_init()
+ */
+function weibo_init() {
+  /**
+   * 根据设置，加载 api 版本，目前分两个版本，oauth1、oauth2
+   * @TODO oauth2 版本暂未实现
+   */
+  module_include_file('weibo.' . var_get_key('weibo', 'version', 'oauth1') . '.class.inc', 'weibo');
+}
+
+/**
+ * Implement of hook_menu()
+ */
+function weibo_menu() {
+  $items['weibo/validate'] = array(
+    'description' => '新浪微博帐号登录或绑定',
+    'page_callback' => 'weibo_page_validate',
+    'access_callback' => true,
+    'file' => 'weibo.page.inc',
+  );
+  
+  $items['admin/weibo/settings'] = array(
+    'title' => '新浪微博设置',
+    'page_callback' => 'dd_get_form',
+    'page_arguments' => array('weibo_admin_settings'),
+    'access_arguments' => array('weibo admin settings'),
+    'file' => 'weibo.admin.inc',
+  );
+  
+  $items['admin/weibo/users'] = array(
+    'title' => '微博用户管理',
+    'page_callback' => 'weibo_admin_users',
+    'access_arguments' => array('weibo admin users'),
+    'file' => 'weibo.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * @Implement of hook_perm()
+ */
+function weibo_perm() {
+  return array(
+    'weibo admin settings' => t('weibo', '微博设置管理'),
+    'weibo admin users' => t('weibo', '微博用户管理'),
+    'weibo user bind' => t('weibo', '绑定微博帐号'),
+    'weibo user login' => t('weibo', '使用微博帐号登录'),
+  );
+}
+
+/**
+ * 验证绑定帐号权限，允许已登录用户绑定新浪微博帐号
+ * @return bool
+ */
+function weibo_is_bind() {
+  return $GLOBALS['user']->uid > 0 || user_access('weibo user bind');
+}
+
+/**
+ * 验证是否拥有发布微博的权限
+ * @return bool
+ */
+function weibo_is_tweet() {
+  return $GLOBALS['user']->uid > 0 && isset($GLOBALS['user']->ext->weibo)
+  && (user_access('weibo user login') || user_access('weibo user bind'));
+}
+
+/**
+ * @Implement of hook_system_admin_menus()
+ * 管理菜单
+ */
+function weibo_system_admin_menus() {
+  return array(array(
+    array(t('weibo', '微博设置'), 'admin/weibo/settings'),
+    array(t('weibo', '微博用户'), 'admin/weibo/users'),
+  ), t('weibo', '新浪微博'));
+}
+
+/**
+ * @Implement of hook_form_alter()
+ */
+function weibo_form_alter($form_id, $form_token, &$form) {
+  global $user;
+  
+  switch ($form_id) {
+    case 'user_login_form':
+      if (user_access('weibo user login')) {
+        $form['fields']['weibo_login_link'] = array(
+          '#value' => l(t('weibo', '使用新浪微博帐号登录'), 'weibo/validate', array(
+            'query' => 'redirect=' . (arg(0) == 'user' ? $_GET['q'] : 'user/center/weibo')
+          )),
+          '#weight' => 1001
+        );
+      }
+    break;
+    case 'comment_form':
+      if (var_get_key('weibo', 'comment_'.$form['fields']['ext_type']['#default_value'], 1)) {
+        if (empty($user->uid)) { 
+          $form['fields']['name']['#description'] .= l('使用新浪微博登录', 'weibo/validate', dd_redirect());
+        } else if (!$form['fields']['cid']['#default_value']) {
+          weibo_tweet_get_form_alter($form, -2);
+        }
+      }
+    break;
+  }
+}
+
+/**
+ * 发送到新浪微博表单字段
+ * @param array $form
+ *  一个引用传递表单数组
+ * @param int $weight
+ *  字段权重
+ */
+function weibo_tweet_get_form_alter(&$form, $weight = 0) {
+  global $user;
+
+  // 没有绑定微博帐号
+  if (empty($user->ext->weibo)) return;
+
+  $form['fields']['weibo'] = array(
+    '#fieldset_prefix' => 'asc',
+    '#fieldset_suffix' => 1,
+    '#fieldset' => true,
+    '#weight' => $weight,
+    '#fieldset_legend' => t('weibo', '发送到新浪微博'),
+  );
+  
+  $form['fields']['weibo']['check'] = array(
+    '#type' => 'radio',
+    '#title' => t('weibo', '发送'),
+    '#default_value' => 0,
+    '#options' => array(t('weibo', '否'), t('weibo', '是')),
+  );
+
+  $options = array();
+  foreach ($user->ext->weibo as $o) {
+    $options[$o->aid] = $o->ext_name;
+  }
+
+  $form['fields']['weibo']['aid'] = array(
+    '#type' => 'select',
+    '#title' => t('weibo', '帐号'),
+    '#required' => 1,
+    '#default_value' => $user->ext->weibo_defualt,
+    '#options' => $options,
+  );
+  
+  $form['fields']['weibo']['text'] = array(
+    '#type' => 'textarea',
+    '#title' => t('weibo', '内容'),
+    '#attributes' => array('rows' => 3, 'cols' => 40, 'id' => 'weibo_tweet_form_type_tweet'),
+    '#description' => t('weibo', '页面 url 将附加于后，总字数不大于 140，留空将使用标题。还可以输入!count个字符',
+      array('!count' => '<strong id="weibo_tweet_text_count"></strong>')),
+  );
+  
+  $form['fields']['weibo']['file'] = array(
+    '#type' => 'textfield',
+    '#title' => t('weibo', '图片'),
+    '#default_value' => '',
+    '#description' => t('weibo', '输入图片地址，发布为一条图片微博。若不需要，则留空'),
+  );
+  
+  dd_add_js(dd_get_path('module', 'weibo') .'/weibo.js');
+}
+
+/**
+ * @Implement of hook_comment_save()
+ */
+function weibo_comment_save($comment) {
+  if ($comment->op == 'insert' && var_get_key('weibo', 'comment_'.$comment->ext_type, 1)
+  && isset($comment->weibo) && $comment->weibo['check'] && $comment->weibo['aid']) {
+ 
+    $url = url('comment/goto/'.$comment->cid, array(
+      'absolute' => true,
+      'fragment' => 'comment_' . $comment->ext_type .'_'. $comment->cid
+    ));
+
+    $api = new weibo($comment->uid, $comment->weibo['aid']);
+    
+    $text = $comment->weibo['text'] ? $comment->weibo['text'] : mb_substr($comment->body, 0, 140);
+
+    if ($api->set_tweet($text, $url, $comment->weibo['file'])) {
+      dd_set_message(t('weibo', '已成功推送到新浪微博'));
+    } else {
+      dd_set_message(t('weibo', '推送到新浪微博失败'), 'error');
+    }
+
+  }
+}
+
+/**
+ * @Implement of hook_user_load()
+ */
+function weibo_user_load(&$ac) {
+  if (!empty($ac->ext->weibo)) {
+    foreach ($ac->ext->weibo as $o) {
+      if (!empty($o->ext_id)) { // 默认微博帐号
+        $ac->weibo_default = $o->aid;
+        break;
+      }
+      // 若没有默认帐号，将最后一个设为默认
+      $ac->weibo_default = $o->aid;
+    }
+  }
+}
+
+/**
+ * 获取用户默认微博帐号，若无默认，则使用最后一个 
+ * @param int $uid 
+ * @access public
+ * @return object
+ */
+function weibo_get_user_default($uid = 0) {
+  if ($weibo = weibo_get_user_info($uid)) {
+    foreach ($weibo as $o) {
+      if (!empty($o->ext_id)) {
+        $info = $o;
+        break;
+      }
+      $info = $o;
+    }
+
+    return $info;
+  }
+}
+
+/**
+ * 获取用户所绑定新浪微博帐号信息，默认为全部帐号
+ * @param int $uid
+ *  用户 id
+ * @param int $aid
+ *  获取指定帐号
+ * @access public
+ * @return 
+ */
+function weibo_get_user_info($uid = 0, $aid = 0) {
+  static $datas;
+  
+  if (!isset($datas[$uid])) {
+    $datas[$uid] = false;
+
+    // 当前用户
+    if (empty($uid) || $uid == $GLOBALS['user']->uid) {
+      if (!empty($GLOBALS['user']->ext->weibo)) {
+        $datas[$uid] = $GLOBALS['user']->ext->weibo;
+      } else {
+        $uid = $GLOBALS['user']->uid;
+      }
+    }
+
+    if (!empty($uid)) {
+      if ($ext = user_ext_load($uid)) {
+        $datas[$uid] = $ext->weibo;
+      }
+    }
+  }
+  if (!empty($datas[$uid])) {
+    return $aid ? $datas[$uid][$aid] : $datas[$uid];
+  }
+}
+
+/**
+ * 更新 user_ext.data
+ * 一般用于发布一条微博或其它数据提交操作后，根据返回数据，更新 dida 中的记录
+ * 这样可立即同步最新数据，免去再次访问新浪接口
+ * @param (int) $aid
+ *  user_ext id
+ * @param object $values
+ *  待更新的内容
+ */
+function weibo_set_user_data($aid, array $values) {
+
+  if ($weibo = user_ext_rows_load($aid)) {
+    $weibo->data = array_merge($weibo->data, $values);
+    if (db_exec('UPDATE {user_ext} SET data = ? WHERE aid = ?', array(serialize($weibo->data), $aid))) {
+      // 更新用户 session
+      user_clear_session($weibo->uid); 
+    }
+  }
+  
+  return $sina;
+}
+
+/**
+ * 发布微博表单
+ */
+function weibo_tweet_form() {
+  global $user;
+
+  // 没有绑定微博帐号
+  if (empty($user->ext->weibo)) return;
+
+  $options = array();
+  foreach ($user->ext->weibo as $o) {
+    $options[$o->aid] = $o->ext_name;
+  }
+
+  $form['fields']['aid'] = array(
+    '#type' => 'select',
+    '#required' => 1,
+    '#title' => t('weibo', '帐号'),
+    '#default_value' => $user->ext->weibo_defualt,
+    '#options' => $options,
+  );
+ 
+  $form['fields']['tweet'] = array(
+    '#type' => 'textarea',
+    '#title' => t('weibo', '发布到新浪微博'),
+    '#description' => t('weibo', '最多140个字符，中英文均算一个字符。还可以输入!count个字符', array('!count' => '<strong id="weibo_tweet_text_count"></strong>')),
+    '#required' => 1,
+    '#attributes' => array('rows' => 5)
+  );
+  
+  $form['fields']['file'] = array(
+    '#type' => 'textfield',
+    '#title' => t('weibo', '图片'),
+    '#default_value' => '',
+    '#description' => t('weibo', '输入图片地址，发布为一条图片微博。若不需要，则留空'),
+  );
+  
+  $form['fields']['button']['#type'] = 'submit';
+  
+  $form['settings'] = array(
+    '#validate' => array('weibo_tweet_form_validate'),
+    '#ajax_validate' => 1
+  );
+  
+  dd_add_js(dd_get_path('module', 'weibo') .'/weibo.js');
+  return $form;
+}
+
+function weibo_tweet_form_validate($form, &$v) {
+  $text = trim($v['tweet']);
+  
+  if (mb_strlen($text) > 140) {
+    $t['tweet']['#error'][] = t('weibo', '不大于 140 个字符');
+  } else if (empty($v['aid'])) {
+    $t['aid']['#error'][] = t('weibo', '请选择一个微博帐号');
+  } else {
+    $api = new weibo($v['uid'], $v['aid']);
+    if ($api->set_tweet($text, '', $v['filepath'])) {
+      dd_set_message(t('weibo', '已成功发送到新浪微博'));
+    } else {
+      $t['tweet']['#error'][] = t('weibo', '请重试');
+    }
+  }
+  
+  return $t;
+}
+
+/**
+ * 微博长度控制，文字加 url 超过 140 字符，截取文字，以保证 url 的完整
+ * @param string $text 
+ *  文字
+ * @param string $url 
+ *  附加到文字末尾的 url
+ * @access public
+ * @return string
+ */
+function weibo_text_strlen($text, $url = NULL) {
+  
+  $len = isset($url) ? mb_strlen($url) : 0;
+  
+  $len = 139 - $len;
+  
+  if (mb_strlen($text) > $len) {
+    $text = mb_substr($text, 0, $len);
+  }
+
+  return $text . ' ' . $url;
+}
+
+/**
+ * 编码数据
+ * @param (string or array) $input
+ */
+function weibo_urlencode_rfc3986($input) { 
+  if (is_array($input)) { 
+    return array_map('weibo_urlencode_rfc3986', $input); 
+  } else if (is_scalar($input)) { 
+    return str_replace( '+', ' ',  str_replace('%7E', '~', rawurlencode($input))); 
+  } else { 
+    return ''; 
+  } 
+}
+
+/**
+ * GET query 字符串解析为数组
+ * @param (string) $string
+ */
+function weibo_parse_parameters($string) { 
+  if (!isset($string) || !$string) return array(); 
+
+  $pairs = explode('&', $string); 
+
+  $param = array(); 
+  foreach ($pairs as $pair) { 
+    $split = explode('=', $pair, 2); 
+    $parameter = urldecode($split[0]); 
+    $value = isset($split[1]) ? urldecode($split[1]) : ''; 
+
+    if (isset($param[$parameter])) { 
+      if (is_scalar($param[$parameter])) { 
+        $param[$parameter] = array($param[$parameter]); 
+      } 
+      $param[$parameter][] = $value; 
+    } else { 
+      $param[$parameter] = $value; 
+    } 
+  } 
+  return $param; 
+}
+
+/**
+ * 单条微博 mid 转换为可访问的 url 
+ * @param int $mid 
+ *  新浪微博 mid 混乱，有时候 mid 与 id 相同，有时不同，一般取 id 即可
+ * @access public
+ * @return string
+ */
+function weibo_get_mid_str($mid) {
+  settype($mid, 'string');
+
+  /**
+   * 新浪微博的 10 进制 id 转为 62 进制编码逻辑为：
+   * 1、将 10 进制数字由后往前分割，7 位为一组
+   * 2、将每组转换为 62 进制并拼接，不足 4 位，补 0，
+   * 3、将拼接的字符串，再次反转，得到最终需要的 url 字符串
+   */
+	$mid_length = strlen($mid);
+	$url = '';
+	$str = strrev($mid);
+	$str = str_split($str, 7);
+
+	foreach ($str as $v) {
+		$char = _weibo_get_10_62(strrev($v));
+		$char = str_pad($char, 4, "0");
+		$url .= $char;
+	}
+
+	$url_str = strrev($url);
+
+	return ltrim($url_str, '0');
+}
+
+/**
+ * 10 进制整数转为 62 进制 
+ * @param int $int10 
+ *  10 进制整数
+ * @access protected
+ * @return string
+ */
+function _weibo_get_10_62($int10) {
+	// 62 进制字典
+	$str62keys = array (
+		"0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q",
+		"r","s","t","u","v","w","x","y","z","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q",
+		"R","S","T","U","V","W","X","Y","Z"
+	);
+	$s62 = '';
+	$r = 0;
+	while ($int10 != 0) {
+		$r = $int10 % 62;
+		$s62 .= $str62keys[$r];
+		$int10 = floor($int10 / 62);
+	}
+	return $s62;
+}
+
+/**
+ * 将微博 url 转换为 id 
+ * @param string $url 
+ * @access public
+ * @return int
+ */
+function weibo_get_str_mid($url) {
+	$surl[2] = _weibo_get_62_10(substr($url, strlen($url) - 4, 4));
+	$surl[1] = _weibo_get_62_10(substr($url, strlen($url) - 8, 4));
+	$surl[0] = _weibo_get_62_10(substr($url, 0, strlen($url) - 8));
+	$int10 = $surl[0] . $surl[1] . $surl[2];
+	return ltrim($int10, '0');
+}
+
+/**
+ * 将 62 进制转换为 10 进制 
+ * @param mixed $str62 
+ * @access protected
+ * @return void
+ */
+function _weibo_get_62_10($str62) {
+  $str62keys = array (
+		"0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q",
+		"r","s","t","u","v","w","x","y","z","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q",
+		"R","S","T","U","V","W","X","Y","Z"
+	);
+	$strarry = str_split($str62);
+	$str = 0;
+	for ($i = 0; $i < strlen($str62); $i++) {
+		$vi = Pow(62, (strlen($str62) - $i -1));
+
+		$str += $vi * array_search($strarry[$i], $str62keys);
+	}
+	$str = str_pad($str, 7, "0", STR_PAD_LEFT);
+	return $str;
+}
+
+/**
+ * @Implement of hook_user_center() 
+ * @param string $op 
+ * @param object $account 
+ * @access public
+ * @return void
+ */
+function weibo_user_center_info() {
+  return array(
+    'weibo' => array(
+      'is_group' => 1,
+      'list_title' => '新浪微博',
+    ),
+    'weibo_default' => array(
+      'title' => '发布微博',
+    ),
+    'weibo_friend' => array(
+      'title' => '我的关注'
+    ),
+    'weibo_follow' => array(
+      'title' => '我的粉丝'
+    ),
+  );
+}
+
+/**
+ * 个人中心页面显示
+ * @Implement of hook_user_center_view() 
+ * @param object $center 
+ *  页面对象
+ * @access public
+ * @return void
+ */
+function weibo_user_center_view($center) {
+  dd_add_css('modules/user/user.css');
+  
+  module_include_file('weibo.user.inc', 'weibo');
+
+  _weibo_user_center($center);
+
+}
+
+

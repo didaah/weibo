@@ -1,0 +1,9 @@
+<?php
+// $Id$
+
+$info = array(
+  'name' => '新浪微博',
+  'description' => '目前实现新浪微博开放平台部分功能',
+  'ver' => '1.0',
+  'language' => 'zh-hans',
+);

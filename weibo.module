@@ -557,4 +557,33 @@ function weibo_user_center_view($center) {
 
 }
 
+/**
+ * 从缓存里读取表情，一般表情较少更新，从缓存中读取即可 
+ * @param string $type 
+ * @param string $lang 
+ * @access public
+ * @return array
+ */
+function weibo_cache_get_emotions($type = 'face', $lang = 'cnname') {
+
+  $key = 'weibo_emotions_' . $type . '_' . $lang;
+  if ($cache = cache_get($key)) {
+    return $cache->data;
+  } else {
+    $api = new weibo();
+    $data = $api->get_emotions($type, $lang);
+    cache_set($key, $data);
+    return $data;
+  }
+}
+
+/**
+ * @Implement of hook_system_cache_clear()
+ */
+function weibo_system_cache_clear($op, $value = NULL) {
+  if ($op == 'submit' && !empty($value['value']['cache_hook'])) {
+    cache_del('*', 'weibo_emotions_');
+  }
+}
+
 

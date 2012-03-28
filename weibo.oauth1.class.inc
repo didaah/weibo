@@ -317,7 +317,7 @@ function weibo_get_access_token(array $values = array()) {
   }
  
   $result = weibo_http_request($values['http_url'], $values);
-  print_r($result); 
+  
   if ($result->data) {
     $token = weibo_parse_parameters($result->data);
     if ($token['oauth_token_secret']) {
@@ -378,7 +378,7 @@ class weibo {
    * @param int $aid 
    * @param int $token 
    * @access public
-   * @return void
+   * @return bool
    */
   public function __construct($uid = 0, $aid = 0, $token = 0) {
     if (!empty($token) && !empty($token->key)) {
@@ -407,18 +407,15 @@ class weibo {
     }
 
     if (empty($this->token->key)) {
-      throw new Exception(t('weibo', '无效的授权'));
+      dd_set_message(t('weibo', '新浪微博授权已过期，请<a href="!url">重新获取授权</a>', array('!url' => url('weibo/validate'))), 'error');
+    } else {
+      return true;
     }
   }
     
   /**
-   * 根据 token 或 aid 获取用户基本信息
+   * 根据当前 token 获取用户基本信息
    * @link http://open.weibo.com/wiki/Account/verify_credentials
-   * @link http://open.weibo.com/wiki/2/users/show -新版本
-   * @param int $aid
-   *  user_ext 表中的记录 id
-   * @param object $token
-   *  访问令牌
    * @access public
    * @return object
    */
@@ -429,6 +426,29 @@ class weibo {
       }
     }
   }
+    
+  /**
+   * 根据用户名、id 获取用户基本信息
+   * @link http://open.weibo.com/wiki/Users/show
+   * @param array $array
+   *  :id、user_id、screen_name 必有其一
+   * @access public
+   * @return object
+   */
+  public function get_user_show($array) {
+    $values = $this->_values;
+    
+    if (!empty($array)) {
+      $values += $array;
+    }
+
+    $result = weibo_http_request('http://api.t.sina.com.cn/users/show.json', $values);
+    
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    }
+  }
+
 
   /**
    * 发布一条微博 
@@ -526,7 +546,7 @@ class weibo {
     $values = $this->_values;
     
     if (!empty($array)) {
-      $values += $array();
+      $values += $array;
     }
 
     if (!empty($screen_name)) $values['screen_name'] = $screen_name;
@@ -576,7 +596,7 @@ class weibo {
     $values = $this->_values;
     
     if (!empty($array)) {
-      $values += $array();
+      $values += $array;
     }
 
     $values['comment'] = weibo_text_strlen($text);
@@ -589,6 +609,43 @@ class weibo {
     if ($result->code == 200) {
       return json_decode($result->data);
     }  
+  }
+
+  /**
+   * 根据微博 id 获取微博信息
+   * @param int $id 
+   *  指定微博 id
+   * @access public
+   * @return aobject
+   */
+  public function get_text($id) {
+    $values = $this->_values;
+    $values['id'] = $id;
+
+    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/show/:id.json', $values);
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    }
+  }
+  
+  /**
+   * 获取表情 
+   * @param string $type 
+   *  表情类别，"face":普通表情，"ani"：魔法表情，"cartoon"：动漫表情 
+   * @param string $lang 
+   *  语言类别，"cnname"简体，"twname"繁体 
+   * @access public
+   * @return array
+   */
+  public function get_emotions($type = 'face', $lang = 'cnname') {
+    $values = $this->_values;
+    $values['type'] = $type;
+    $values['language'] = $lang;
+
+    $result = weibo_http_request('http://api.t.sina.com.cn/emotions.json', $values);
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    } 
   }
 
   /**
@@ -609,6 +666,7 @@ class weibo {
     $values['page'] = $page_size;
 
     $result = weibo_http_request('http://api.t.sina.com.cn/statuses/comments.json', $values);
+    
     if ($result->code == 200) {
       return json_decode($result->data);
     }

@@ -5,7 +5,6 @@
  * 用户的微博页面
  */
 function _weibo_user_center($center) {
-
   if ($center->type == 'weibo_default') { 
 
     if (empty($center->user->ext->weibo)) {

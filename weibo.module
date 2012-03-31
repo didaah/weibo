@@ -586,4 +586,46 @@ function weibo_system_cache_clear($op, $value = NULL) {
   }
 }
 
+/**
+ *  
+ * @access protected
+ * @return void
+ */
+function _weibo_get_cache_emotions() {
+  static $data;
+
+  if (!isset($data)) {
+    $data = array();
+    if ($cache = cache_get('weibo_emotions_list_face')) {
+      $data = $cache->data;
+    } else if ($_data = weibo_cache_get_emotions('face')) {
+
+      foreach ($_data as $o) {
+        $data[$o->phrase] = '<img src="' . $o->url . '" title="' . $o->phrase . '" alt="' . $o->phrase . '" />';
+      }
+      cache_set('weibo_emotions_list_face', $data);
+    }
+  }
+
+  return $data;
+}
+
+/**
+ * @Implement of hook_filter()
+ */
+function weibo_filter($op, $delta = NULL, $format = NULL, $value = NULL, $filter_id = NULL, $node_type = NULL, $node_nid = NULL) {
+
+  if ($op == 'view' && $delta == 'emotions') {
+    return strtr($value, _weibo_get_cache_emotions());
+  } else if ($op == 'list') {
+    return array(
+      'emotions' => array(
+        'title' => '新浪微博表情',
+        'description' => '将 [xxx] 转换为新浪微博表情图片',
+      )
+    );
+  }
+
+}
+
 

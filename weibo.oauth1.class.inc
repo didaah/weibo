@@ -163,7 +163,7 @@ function weibo_get_request(array $params) {
     
   } else {
     // 远程获取签名
-    $request->sign = _weibo_http_get_sign(
+    $request->sign = weibo_http_get_sign(
       $request->consumer->key,
       $request->base_string,
       ($request->token ? $request->token->secret : "")

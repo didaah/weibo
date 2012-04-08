@@ -352,8 +352,13 @@ function weibo_http_request($http_url, array $values = array(), array $headers =
   if (!$request = weibo_get_request($values)) {
     return false;
   }
-  
-  return dd_http_request($request->http_url, $request->to_data, $method, $headers);
+
+  // @TODO 新浪 api 针对单个 ip 有严格的访问限制，可自定义一个函数用来分发请求。暂时的处理办法
+  if (!function_exists('__weibo_extend_http_request')) {
+    return dd_http_request($request->http_url, $request->to_data, $method, $headers);
+  } else {
+    return __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers);
+  }
 }
 
 /**
@@ -388,6 +393,8 @@ class weibo {
         $info = user_ext_rows_load($aid);
       } else if (!empty($uid)) {
         $info = weibo_get_user_default($uid);
+      } else {
+        $is_access = true;
       }
       
       if (!empty($info)) {
@@ -407,7 +414,10 @@ class weibo {
     }
 
     if (empty($this->token->key)) {
-      dd_set_message(t('weibo', '新浪微博授权已过期，请<a href="!url">重新获取授权</a>', array('!url' => url('weibo/validate'))), 'error');
+      if (empty($is_access)) {
+        dd_set_message(t('weibo', '新浪微博授权已过期，请<a href="!url">重新获取授权</a>', array('!url' => url('weibo/validate'))), 'error');
+      }
+      return false;
     } else {
       return true;
     }
@@ -572,7 +582,6 @@ class weibo {
     $values['ids'] = $ids;
 
     $result = weibo_http_request('http://api.t.sina.com.cn/statuses/counts.json', $values);
-
     if ($result->code == 200) {
       return json_decode($result->data);
     } 
@@ -659,13 +668,41 @@ class weibo {
    * @access public
    * @return array
    */
-  public function get_comment($id, $page_size = 1, $page_count = 20) {
+  public function get_comment($id, $page_size = 1, $page_count = 20, $options = array()) {
     $values = $this->_values;
     $values['id'] = $id;
     $values['count'] = $page_count;
     $values['page'] = $page_size;
 
+    $values += $options;
+
     $result = weibo_http_request('http://api.t.sina.com.cn/statuses/comments.json', $values);
+    
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    }
+  }
+
+  /**
+   * 根据微博 id 获取转发 
+   * @param int $id 
+   *  指定微博 id
+   * @param int $page_size 
+   *  页码
+   * @param int $page_count 
+   *  每页评论数量，最大 200
+   * @access public
+   * @return array
+   */
+  public function get_repost($id, $page_size = 1, $page_count = 20, $options = array()) {
+    $values = $this->_values;
+    $values['id'] = $id;
+    $values['count'] = $page_count;
+    $values['page'] = $page_size;
+    
+    $values += $options;
+
+    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/repost_timeline.json', $values);
     
     if ($result->code == 200) {
       return json_decode($result->data);
@@ -700,4 +737,23 @@ class weibo {
       return json_decode($result->data);
     } 
   }
+ 
+  /**
+   * 获取访问次数剩余量
+   * @access public
+   * @return array
+   */
+  public function get_limit_status() {
+    $values = $this->_values;
+
+    $url = 'http://api.t.sina.com.cn/account/rate_limit_status.json';
+
+    $result = weibo_http_request($url, $values);
+    
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    } 
+  }
+
+ 
 }

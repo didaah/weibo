@@ -60,6 +60,7 @@ function _weibo_user_validate($token = NULL) {
   $api = new weibo(0, 0, $token);
   
   if ($o = $api->get_user_info()) {
+    
     $weibo = new stdClass;
     $weibo->data = array();
     $weibo->data['token'] = $token;
@@ -105,7 +106,7 @@ function _weibo_user_validate($token = NULL) {
         user_clear_session($user->uid); 
 
       } else if ($account = user_load($info->uid)) { // 让用户登录
-        if (user_login($account)) {
+        if (user_login($account, 0)) {
           dd_set_message(t('weibo', '登录成功'));
         }
       } else {
@@ -157,7 +158,7 @@ function _weibo_user_validate($token = NULL) {
         dd_set_message(t('weibo', '已为您成功创建帐号：!name，随机密码：!pass，如需从!site直接登录，请记住此密码',
           array('!name' => $user->name, '!pass' => $ac->pass, '!site' => var_get_key('site_global', 'name'))));
 
-        user_login($user);
+        user_login($user, 0);
 
         user_clear_session($user->uid); 
 

@@ -35,7 +35,7 @@ function weibo_admin_settings(){
     '#required' => 1,
     '#options' => array(
       'oauth1' => 'oauth1',
-      //'oauth2' => 'oauth2'
+      'oauth2' => 'oauth2'
     ),
   );
 

@@ -97,7 +97,7 @@ function weibo_form_alter($form_id, $form_token, &$form) {
       if (user_access('weibo user login')) {
         $form['fields']['weibo_login_link'] = array(
           '#value' => l(t('weibo', '使用新浪微博帐号登录'), 'weibo/validate', array(
-            'query' => 'redirect=' . (arg(0) == 'user' ? $_GET['q'] : 'user/center/weibo')
+            'query' => 'redirect=' . (arg(0) != 'user' ? $_GET['q'] : 'user/center/weibo')
           )),
           '#weight' => 1001
         );
@@ -106,7 +106,9 @@ function weibo_form_alter($form_id, $form_token, &$form) {
     case 'comment_form':
       if (var_get_key('weibo', 'comment_'.$form['fields']['ext_type']['#default_value'], 1)) {
         if (empty($user->uid)) { 
-          $form['fields']['name']['#description'] .= l('使用新浪微博登录', 'weibo/validate', dd_redirect());
+          $form['fields']['name']['#description'] .= l(t('weibo', '使用新浪微博登录'), 'weibo/validate', array(
+            'query' => 'redirect=' . (arg(0) != 'user' ? $_GET['q'] : 'user/center/weibo')
+          ));
         } else if (!$form['fields']['cid']['#default_value']) {
           weibo_tweet_get_form_alter($form, -2);
         }
@@ -349,7 +351,7 @@ function weibo_tweet_form_validate($form, &$v) {
     $t['aid']['#error'][] = t('weibo', '请选择一个微博帐号');
   } else {
     $api = new weibo($v['uid'], $v['aid']);
-    if ($api->set_tweet($text, '', $v['filepath'])) {
+    if ($api->set_tweet($text, '', $v['file'])) {
       dd_set_message(t('weibo', '已成功发送到新浪微博'));
     } else {
       $t['tweet']['#error'][] = t('weibo', '请重试');
@@ -627,5 +629,3 @@ function weibo_filter($op, $delta = NULL, $format = NULL, $value = NULL, $filter
   }
 
 }
-
-

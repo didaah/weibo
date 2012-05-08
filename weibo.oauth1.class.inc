@@ -12,7 +12,10 @@
 function weibo_get_request(array $params) {
   $request = new stdClass;
   
-  if ($consumer_key = var_get_key('weibo', 'oauth_consumer_key', false)) {
+  if (!empty($params['oauth_consumer_key'])) {
+    $consumer_key = $params['oauth_consumer_key'];
+    $consumer_secret = $params['oauth_consumer_secret'];
+  } else if ($consumer_key = var_get_key('weibo', 'oauth_consumer_key', false)) {
     $consumer_secret = var_get_key('weibo', 'oauth_consumer_secret', false);
   } else {
     $consumer_key = 401055340;
@@ -20,7 +23,7 @@ function weibo_get_request(array $params) {
   
   // 默认参数
   $defaults = array( 
-    'oauth_version' => '1.0a', // 版本
+    'oauth_version' => '1.0', // 版本
     'oauth_nonce' => md5(mt_rand(). $_SERVER['REQUEST_TIME']), // 随机数
     'oauth_timestamp' => time(), // 发起请求的时间戳
     'oauth_consumer_key' => $consumer_key, // app key
@@ -323,7 +326,11 @@ function weibo_get_access_token(array $values = array()) {
     if ($token['oauth_token_secret']) {
       unset($_SESSION['sina_t_oauth_token']);
       $tok = new stdClass;
-      
+
+      // 记录 app key 
+      $tok->oauth_consumer_key = var_get_key('weibo', 'oauth_consumer_key', false);
+      $tok->oauth_consumer_secret = var_get_key('weibo', 'oauth_consumer_secret', false);
+
       // 访问令牌
       $tok->key = $token['oauth_token'];
       $tok->secret = $token['oauth_token_secret'];
@@ -372,6 +379,12 @@ class weibo {
   // 微博帐号 id，对应 user_ext 表
   var $aid = 0;
 
+  // 微博 uid
+  var $weibo_uid = 0;
+
+  // 微博帐号昵称
+  var $weibo_name = '';
+
   // 微博访问令牌
   var $token;
 
@@ -400,7 +413,9 @@ class weibo {
       if (!empty($info)) {
         $this->token = $info->data['token'];
         $this->uid = $info->uid;
-        $this->aid = $aid;
+        $this->weibo_uid = $info->ext_type;
+        $this->weibo_name = $info->ext_name;
+        $this->aid = $info->aid;
       }
     }
 
@@ -409,6 +424,14 @@ class weibo {
       'oauth_access_token_secret' => $this->token->secret
     );
 
+    if ($this->token->oauth_consumer_key) {
+      $this->_values['oauth_consumer_key'] = $this->token->oauth_consumer_key;
+    }
+    
+    if ($this->token->oauth_consumer_secret) {
+      $this->_values['oauth_consumer_secret'] = $this->token->oauth_consumer_secret;
+    }
+    
     if (!isset($this->token->verifier)) {
       $this->_values['oauth_verifier'] = $this->token->verifier;
     }
@@ -562,7 +585,7 @@ class weibo {
     if (!empty($screen_name)) $values['screen_name'] = $screen_name;
 
     if (!empty($uid)) $values['user_id'] = $uid;
-
+    
     $result = weibo_http_request('http://api.t.sina.com.cn/statuses/user_timeline.json', $values);
 
     if ($result->code == 200) {
@@ -582,6 +605,7 @@ class weibo {
     $values['ids'] = $ids;
 
     $result = weibo_http_request('http://api.t.sina.com.cn/statuses/counts.json', $values);
+    
     if ($result->code == 200) {
       return json_decode($result->data);
     } 
@@ -625,7 +649,7 @@ class weibo {
    * @param int $id 
    *  指定微博 id
    * @access public
-   * @return aobject
+   * @return object
    */
   public function get_text($id) {
     $values = $this->_values;
@@ -655,6 +679,31 @@ class weibo {
     if ($result->code == 200) {
       return json_decode($result->data);
     } 
+  }
+
+  /**
+   * 获取当前用户发出的评论
+   * @link http://open.weibo.com/wiki/Statuses/comments_by_me
+   * @param int $page_size 
+   *  页码
+   * @param int $page_count 
+   *  每页评论数量，最大 200
+   * $param array $options
+   * @access public
+   * @return array
+   */
+  public function get_comment_by_me($page_size = 1, $page_count = 20, $options = array()) {
+    $values = $this->_values;
+    $values['count'] = $page_count;
+    $values['page'] = $page_size;
+
+    $values += $options;
+
+    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/comments_by_me.json', $values);
+    
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    }
   }
 
   /**
@@ -710,6 +759,32 @@ class weibo {
   }
 
   /**
+   * @link http://open.weibo.com/wiki/Statuses/followers
+   * 根据用户 uid 获取粉丝
+   * @param int $uid 
+   *  用户 uid
+   * @param int $page_size 
+   *  页码，第一页为 -1
+   * @param int $page_count 
+   *  每页数量，最大 200
+   * @access public
+   * @return array
+   */
+  public function get_follower($id, $page_size = -1, $page_count = 200) {
+    $values = $this->_values;
+    $values['user_id'] = $id;
+    $values['count'] = $page_count;
+    $values['cursor'] = $page_size;
+    
+    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/followers.json', $values);
+    
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    }
+  }
+
+
+  /**
    * 获取热门话题 
    * @link http://open.weibo.com/wiki/Trends/daily
    * @link http://open.weibo.com/wiki/Trends/weekly
@@ -755,5 +830,22 @@ class weibo {
     } 
   }
 
- 
+  /**
+   * oauth1 token 换 oauth2
+   * @access public
+   * @return array
+   */
+  public function get_oauth2_token() {
+    $values = $this->_values;
+
+    $url = 'https://api.weibo.com/oauth2/get_oauth2_token';
+
+    $result = weibo_http_request($url, $values);
+    
+    if ($result->code == 200) {
+      return json_decode($result->data);
+    } 
+  }
+
+
 }

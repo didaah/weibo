@@ -27,7 +27,19 @@ function weibo_admin_settings(){
     '#options' => array(t('weibo', '默认'), t('weibo', '激活')),
     '#description' => t('weibo', '通过微博帐号注册成功后的用户状态，默认则使用网站全局设置')
   );
-   
+    
+  $form['fields']['weibo']['send'] = array(
+    '#title' => t('weibo', '发布界面'),
+    '#default_value' => var_get_key('weibo', 'send', 1),
+    '#type' => 'radio',
+    '#description' => t('weibo', '在个人中心提供发布微博界面'),
+    '#required' => 1,
+    '#options' => array(
+      t('weibo', '否'),
+      t('weibo', '是'),
+    ),
+  );
+ 
   $form['fields']['weibo']['version'] = array(
     '#title' => t('weibo', 'API 版本'),
     '#default_value' => var_get_key('weibo', 'version', 'oauth1'),

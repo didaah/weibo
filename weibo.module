@@ -525,7 +525,7 @@ function _weibo_get_62_10($str62) {
  * @return void
  */
 function weibo_user_center_info() {
-  return array(
+  $links = array(
     'weibo' => array(
       'is_group' => 1,
       'list_title' => '新浪微博',
@@ -540,6 +540,11 @@ function weibo_user_center_info() {
       'title' => '我的粉丝'
     ),
   );
+
+  // 不在个人中心显示发布微博界面
+  if (!var_get_key('weibo', 'send', 1)) unset($links['weibo_default']);
+
+  return $links;
 }
 
 /**

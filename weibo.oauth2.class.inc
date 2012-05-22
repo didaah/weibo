@@ -254,11 +254,17 @@ class weibo {
     if (!function_exists('__weibo_extend_http_request')) {
       $result = dd_http_request($request->http_url, $request->to_data, $method, $headers);
     } else {
-      $result = __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers);
+      $result = __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, $host);
     }
 
     if ($result->code == 200) {
-      return json_decode($result->data);
+      $data = json_decode($result->data);
+      if (is_object($data) && !empty($data->error_code)) {
+        $this->error = $data;
+        $this->error->client_host = $host;
+      } else {
+        return $data;
+      }
     } else if ($json = json_decode($result->data)) {
       if ($json->error_code == 21327) {
         dd_set_message(t('weibo', '授权已过期，请进入通过新浪微博重新授权'), 'error');
@@ -608,6 +614,16 @@ class weibo {
   }
 
   /**
+   * 根据 mid 获取 id 
+   * @param array $values 
+   * @access public
+   * @return array
+   */
+  public function get_queryid($values) {
+    return $this->http_request('https://api.weibo.com/2/statuses/queryid.json', $values, array(), 'GET');
+  }
+    
+  /**
    * 获取热门话题 
    * @link http://open.weibo.com/wiki/Trends/daily
    * @link http://open.weibo.com/wiki/Trends/weekly
@@ -652,4 +668,13 @@ class weibo {
   public function get_user_counts($uids) {
     return $this->http_request('https://api.weibo.com/2/users/counts.json', array('uids' => $uids), array(), 'GET'); 
   } 
+
+  /**
+   * 获取当前用户的收藏 
+   * @access public
+   * @return array
+   */
+  public function get_favorites($page = 1, $count = 50) {
+    return $this->http_request('https://api.weibo.com/2/favorites.json', array('count' => $count, 'page' => $page), array(), 'GET'); 
+  }
 }

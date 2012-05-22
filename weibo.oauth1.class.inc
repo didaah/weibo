@@ -364,7 +364,7 @@ function weibo_http_request($http_url, array $values = array(), array $headers =
   if (!function_exists('__weibo_extend_http_request')) {
     return dd_http_request($request->http_url, $request->to_data, $method, $headers);
   } else {
-    return __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers);
+    return __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, &$key);
   }
 }
 
@@ -387,6 +387,8 @@ class weibo {
 
   // 微博访问令牌
   var $token;
+
+  var $error;
 
   protected $_values = array(); 
 
@@ -445,7 +447,50 @@ class weibo {
       return true;
     }
   }
+   
+  /**
+   * 执行一个 http 请求
+   */
+  public function http($http_url, array $values = array(), array $headers = array(), $method = 'POST') {
+    if (!isset($headers['User-Agent'])) {
+      $headers['User-Agent'] = 'Sae T OAuth v0.2.0-beta2';
+    }
     
+    if (!isset($headers['Content-Type'])) {
+      $headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=utf-8';
+    }
+    
+    $values += $this->_values;
+    $values['http_url'] = $http_url;
+    $values['http_method'] = $method;
+
+    if (!$request = weibo_get_request($values)) {
+      return false;
+    }
+
+    // @TODO 新浪 api 针对单个 ip 有严格的访问限制，可自定义一个函数用来分发请求。暂时的处理办法
+    if (!function_exists('__weibo_extend_http_request')) {
+      $result = dd_http_request($request->http_url, $request->to_data, $method, $headers);
+    } else {
+      $result = __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, $host);
+    }
+    
+    if ($result->code == 200) {
+      $data = json_decode($result->data);
+      if (is_object($data) && !empty($data->error_code)) {
+
+        if (strpos($data->error, '40022') !== false) {
+          dd_log('weibo_appkey', $this->token->uid);
+        }
+
+        $this->error = $data;
+        $this->error->client_host = $host;
+      } else {
+        return $data;
+      }
+    }
+  }
+
   /**
    * 根据当前 token 获取用户基本信息
    * @link http://open.weibo.com/wiki/Account/verify_credentials
@@ -453,11 +498,7 @@ class weibo {
    * @return object
    */
   public function get_user_info() {
-    if ($result = weibo_http_request('http://api.t.sina.com.cn/account/verify_credentials.json', $this->_values)) {
-      if ($result->code == 200) {
-        return json_decode($result->data);
-      }
-    }
+    return $this->http('http://api.t.sina.com.cn/account/verify_credentials.json');
   }
     
   /**
@@ -469,19 +510,8 @@ class weibo {
    * @return object
    */
   public function get_user_show($array) {
-    $values = $this->_values;
-    
-    if (!empty($array)) {
-      $values += $array;
-    }
-
-    $result = weibo_http_request('http://api.t.sina.com.cn/users/show.json', $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/users/show.json', $array);
   }
-
 
   /**
    * 发布一条微博 
@@ -499,24 +529,15 @@ class weibo {
       return $this->set_upload($filepath, $text, $url);
     }
 
-    $values = $this->_values;
+    $values = array();
     $values['status'] = weibo_text_strlen($text, $url);
      
-    $result = weibo_http_request(
-      'http://api.t.sina.com.cn/statuses/update.json',
-      $values
-    );
-    
-    if ($result->code == 200) {
+    if ($json = $this->http('http://api.t.sina.com.cn/statuses/update.json', $values)) {
       // 更新本地信息
-      if ($json = json_decode($result->data)) {
-        // @TODO 接口返回的微博数量，似乎没有将本条计算在内
-        $json->user->statuses_count += 1;
-        weibo_set_user_data($this->aid, array('info' => $json->user));
-      }
+      // @TODO 接口返回的微博数量，似乎没有将本条计算在内
+      $json->user->statuses_count += 1;
+      weibo_set_user_data($this->aid, array('info' => $json->user));
       return $json;
-    } else {
-      return false;
     }
   }
 
@@ -531,7 +552,7 @@ class weibo {
    */
   public function set_upload($filepath, $text = NULL, $url = NULL) {
     
-    $values = $this->_values;
+    $values = array();
     
     if ($text = weibo_text_strlen($text, $url)) {
       $values['status'] = $text;
@@ -543,22 +564,16 @@ class weibo {
     
     $values['boundary'] = uniqid('------------------');
 
-    $result = weibo_http_request(
+    if ($json = $this->http(
       'http://api.t.sina.com.cn/statuses/upload.json',
       $values,
       array('Content-Type' => 'multipart/form-data; boundary=' . $values['boundary'])
-    );
-
-    if ($result->code == 200) {
+    )) {
       // 更新本地信息
-      if ($json = json_decode($result->data)) {
-        // @TODO 接口返回的微博数量，似乎没有将本条计算在内
-        $json->user->statuses_count += 1;
-        weibo_set_user_data($this->aid, array('info' => $json->user));
-      }
+      // @TODO 接口返回的微博数量，似乎没有将本条计算在内
+      $json->user->statuses_count += 1;
+      weibo_set_user_data($this->aid, array('info' => $json->user));
       return $json;
-    } else {
-      return false;
     }  
   }
 
@@ -575,22 +590,13 @@ class weibo {
    * @access public
    * @return array
    */
-  public function get_timeline($uid = 0, $screen_name = 0, array $array = array()) {
-    $values = $this->_values;
-    
-    if (!empty($array)) {
-      $values += $array;
-    }
+  public function get_timeline($uid = 0, $screen_name = 0, array $values = array()) {
 
     if (!empty($screen_name)) $values['screen_name'] = $screen_name;
 
     if (!empty($uid)) $values['user_id'] = $uid;
     
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/user_timeline.json', $values);
-
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/statuses/user_timeline.json', $values);
   }
 
   /**
@@ -600,15 +606,10 @@ class weibo {
    * @return array
    */
   public function get_counts($ids) {
-    $values = $this->_values;
 
-    $values['ids'] = $ids;
+    $values = array('ids' => $ids);
 
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/counts.json', $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    } 
+    return $this->http('http://api.t.sina.com.cn/statuses/counts.json', $values);
   }
 
   /**
@@ -626,7 +627,7 @@ class weibo {
    * @return object
    */
   public function set_comment($text, $id, $cid = 0, $array = array('without_mention' => 1, 'comment_ori' => 1)) {
-    $values = $this->_values;
+    $values = array();
     
     if (!empty($array)) {
       $values += $array;
@@ -638,10 +639,7 @@ class weibo {
 
     if (!empty($cid)) $values['cd'] = $cid;
  
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/comment.json', $values);
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }  
+    return $this->http('http://api.t.sina.com.cn/statuses/comment.json', $values);
   }
 
   /**
@@ -652,13 +650,9 @@ class weibo {
    * @return object
    */
   public function get_text($id) {
-    $values = $this->_values;
-    $values['id'] = $id;
+    $values = array('id' => $id);
 
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/show/:id.json', $values);
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/statuses/show/:id.json', $values);
   }
   
   /**
@@ -671,14 +665,11 @@ class weibo {
    * @return array
    */
   public function get_emotions($type = 'face', $lang = 'cnname') {
-    $values = $this->_values;
+    $values = array();
     $values['type'] = $type;
     $values['language'] = $lang;
 
-    $result = weibo_http_request('http://api.t.sina.com.cn/emotions.json', $values);
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    } 
+    return $this->http('http://api.t.sina.com.cn/emotions.json', $values);
   }
 
   /**
@@ -693,17 +684,13 @@ class weibo {
    * @return array
    */
   public function get_comment_by_me($page_size = 1, $page_count = 20, $options = array()) {
-    $values = $this->_values;
+    $values = array();
     $values['count'] = $page_count;
     $values['page'] = $page_size;
 
     $values += $options;
 
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/comments_by_me.json', $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/statuses/comments_by_me.json', $values);
   }
 
   /**
@@ -718,18 +705,14 @@ class weibo {
    * @return array
    */
   public function get_comment($id, $page_size = 1, $page_count = 20, $options = array()) {
-    $values = $this->_values;
+    $values = array();
     $values['id'] = $id;
     $values['count'] = $page_count;
     $values['page'] = $page_size;
 
     $values += $options;
 
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/comments.json', $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/statuses/comments.json', $values);
   }
 
   /**
@@ -744,18 +727,14 @@ class weibo {
    * @return array
    */
   public function get_repost($id, $page_size = 1, $page_count = 20, $options = array()) {
-    $values = $this->_values;
+    $values = array();
     $values['id'] = $id;
     $values['count'] = $page_count;
     $values['page'] = $page_size;
     
     $values += $options;
 
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/repost_timeline.json', $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/statuses/repost_timeline.json', $values);
   }
 
   /**
@@ -771,16 +750,12 @@ class weibo {
    * @return array
    */
   public function get_follower($id, $page_size = -1, $page_count = 200) {
-    $values = $this->_values;
+    $values = array();
     $values['user_id'] = $id;
     $values['count'] = $page_count;
     $values['cursor'] = $page_size;
     
-    $result = weibo_http_request('http://api.t.sina.com.cn/statuses/followers.json', $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    }
+    return $this->http('http://api.t.sina.com.cn/statuses/followers.json', $values);
   }
 
 
@@ -796,7 +771,7 @@ class weibo {
    * @return array
    */
   public function get_hot_trends($weekly = false, $base_app = 0) {
-    $values = $this->_values;
+    $values = array();
 
     $values['base_app'] = $base_app;
 
@@ -806,11 +781,7 @@ class weibo {
       $url = 'http://api.t.sina.com.cn/trends/daily.json';
     }
 
-    $result = weibo_http_request($url, $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    } 
+    return $this->http($url, $values);
   }
  
   /**
@@ -819,15 +790,9 @@ class weibo {
    * @return array
    */
   public function get_limit_status() {
-    $values = $this->_values;
-
     $url = 'http://api.t.sina.com.cn/account/rate_limit_status.json';
 
-    $result = weibo_http_request($url, $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    } 
+    return $this->http($url, $values);
   }
 
   /**
@@ -836,16 +801,9 @@ class weibo {
    * @return array
    */
   public function get_oauth2_token() {
-    $values = $this->_values;
 
     $url = 'https://api.weibo.com/oauth2/get_oauth2_token';
 
-    $result = weibo_http_request($url, $values);
-    
-    if ($result->code == 200) {
-      return json_decode($result->data);
-    } 
+    return $this->http($url);
   }
-
-
 }

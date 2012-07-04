@@ -126,7 +126,7 @@ function weibo_form_alter($form_id, $form_token, &$form) {
  */
 function weibo_tweet_get_form_alter(&$form, $weight = 0) {
   global $user;
-
+  
   // 没有绑定微博帐号
   if (empty($user->ext->weibo)) return;
 
@@ -577,7 +577,7 @@ function weibo_cache_get_emotions($type = 'face', $lang = 'cnname') {
   if ($cache = cache_get($key)) {
     return $cache->data;
   } else {
-    $api = new weibo();
+    $api = new weibo($GLOBALS['user']->uid);
     $data = $api->get_emotions($type, $lang);
     cache_set($key, $data);
     return $data;
@@ -606,7 +606,6 @@ function _weibo_get_cache_emotions() {
     if ($cache = cache_get('weibo_emotions_list_face')) {
       $data = $cache->data;
     } else if ($_data = weibo_cache_get_emotions('face')) {
-
       foreach ($_data as $o) {
         $data[$o->phrase] = '<img src="' . $o->url . '" title="' . $o->phrase . '" alt="' . $o->phrase . '" />';
       }
@@ -621,7 +620,7 @@ function _weibo_get_cache_emotions() {
  * @Implement of hook_filter()
  */
 function weibo_filter($op, $delta = NULL, $format = NULL, $value = NULL, $filter_id = NULL, $node_type = NULL, $node_nid = NULL) {
-
+  
   if ($op == 'view' && $delta == 'emotions') {
     return strtr($value, _weibo_get_cache_emotions());
   } else if ($op == 'list') {

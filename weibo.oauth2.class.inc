@@ -266,8 +266,8 @@ class weibo {
         return $data;
       }
     } else if ($json = json_decode($result->data)) {
-      if ($json->error_code == 21327) {
-        dd_set_message(t('weibo', '授权已过期，请进入通过新浪微博重新授权'), 'error');
+      if ($json->error_code == 21327 || $json->error_code == 21332) {
+        dd_set_message(t('weibo', '授权已过期，请通过新浪微博重新授权，' . l('点击这儿', 'weibo/validate')), 'error');
       } else {
         dd_set_message($json->error_code . ':' . $json->error, 'error');
       }
@@ -676,5 +676,14 @@ class weibo {
    */
   public function get_favorites($page = 1, $count = 50) {
     return $this->http_request('https://api.weibo.com/2/favorites.json', array('count' => $count, 'page' => $page), array(), 'GET'); 
+  }
+
+  /**
+   * 验证 token 是否有效
+   * @access public
+   * @return bool
+   */
+  public function is_token() {
+    return $this->http_request('https://api.weibo.com/2/account/get_uid.json', array(), array(), 'GET'); 
   }
 }

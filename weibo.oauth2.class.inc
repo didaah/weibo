@@ -108,7 +108,7 @@ function weibo_get_request(array $params) {
 /**
  * 获取授权令牌，让用户使用此链接跳转到新浪进行授权
  * @param array $values
- * @return string|bool
+ * @return string
  */
 function weibo_get_login_url(array $values = array()) {
 
@@ -119,7 +119,7 @@ function weibo_get_login_url(array $values = array()) {
   }
 
   if (!empty($_GET['oauth_callback'])) {
-    $redirect_uri = $_GET['oauth_callback'];
+    $redirect = $_GET['oauth_callback'];
   } else if (!empty($values['oauth_callback'])) {
     $redirect = $values['oauth_callback'];
     unset($values['oauth_callback']);
@@ -187,14 +187,18 @@ function weibo_get_access_token(array $values = array()) {
 class weibo {
 
   // 用户 uid
-  var $uid = 0;
+  public $uid = 0;
 
   // 微博帐号 id，对应 user_ext 表
-  var $aid = 0;
+  public $aid = 0;
 
-  // 微博访问令牌
-  var $token;
+  // 微博授权信息
+  public $token;
 
+  // 授权令牌
+  public $access_token = '';
+
+  // 待提交数据
   protected $_values = array(); 
 
   /**
@@ -214,17 +218,19 @@ class weibo {
       } else if (!empty($uid)) {
         $info = weibo_get_user_default($uid);
       } else {
-        $is_access = true;
+        return false; 
       }
       
       if (!empty($info)) {
         $this->token = $info->data['token'];
         $this->uid = $info->uid; // 此 uid 为 dida 系统中的 uid，weibo uid ，通过 $this->token->uid 获得
-        $this->aid = $aid;
+        $this->aid = $info->aid;
       }
     }
 
     $this->access_token = $this->token->access_token;
+
+    return true;
   }
    
   /**
@@ -685,5 +691,16 @@ class weibo {
    */
   public function is_token() {
     return $this->http_request('https://api.weibo.com/2/account/get_uid.json', array(), array(), 'GET'); 
+  }
+
+  /**
+   * 执行一个 api 请求 
+   * @param mixed $url 
+   * @param array $values 
+   * @access public
+   * @return object
+   */
+  public function execute($url, $values = array()) {
+    return $this->http_request($url, $values, array(), 'GET'); 
   }
 }

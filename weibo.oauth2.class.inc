@@ -669,16 +669,28 @@ class weibo {
    * @param string $uids 
    *  用户 uid，最多 100 个，以逗号分隔
    * @access public
-   * @return array
+   * @return object
    */
   public function get_user_counts($uids) {
     return $this->http_request('https://api.weibo.com/2/users/counts.json', array('uids' => $uids), array(), 'GET'); 
   } 
 
   /**
+   * 获取最新公共微博
+   * @link http://open.weibo.com/wiki/2/statuses/public_timeline
+   * @param string $count 
+   *  获取数量，默认 200，最大 200
+   * @access public
+   * @return object
+   */
+  public function get_public_timeline($count = 200) {
+    return $this->http_request('https://api.weibo.com/2/statuses/public_timeline.json', array('count' => $count), array(), 'GET'); 
+  } 
+
+  /**
    * 获取当前用户的收藏 
    * @access public
-   * @return array
+   * @return object
    */
   public function get_favorites($page = 1, $count = 50) {
     return $this->http_request('https://api.weibo.com/2/favorites.json', array('count' => $count, 'page' => $page), array(), 'GET'); 
@@ -694,13 +706,17 @@ class weibo {
   }
 
   /**
-   * 执行一个 api 请求 
-   * @param mixed $url 
+   * 执行一个 api 请求
+   * @param string $url 
+   *  api 地址
    * @param array $values 
+   *  传递的参数，传递给此接口的参数，将不做任何处理
+   * @param string $method
+   *  方法，默认为 GET
    * @access public
    * @return object
    */
-  public function execute($url, $values = array()) {
-    return $this->http_request($url, $values, array(), 'GET'); 
+  public function execute($url, $values = array(), $method = 'GET') {
+    return $this->http_request($url, $values, array(), $method); 
   }
 }

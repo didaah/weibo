@@ -319,17 +319,17 @@ class weibo {
    */
   public function set_tweet($text, $url = NULL, $filepath = NULL, $annotations = '') {
     // url 长度大于 20，生成短链接
-    if (strlen($filepath) > 20) {
+    if (strlen($url) > 20) {
       // 使用微博开放平台的 id
-      if ($data = file_get_contents('https://api.weibo.com/2/short_url/shorten.json?url_long=' . $filepath . '&source=543368493')) {
+      if ($data = file_get_contents('https://api.weibo.com/2/short_url/shorten.json?url_long=' . urlencode($url) . '&source=543368493')) {
         if ($data = json_decode($data)) {
           if (!empty($data->urls) && $data->urls[0]->result) {
-            $filepath = $data->urls[0]->url_short;
+            $url = $data->urls[0]->url_short;
           }
         }
       }
     }
-
+    
     if (!empty($filepath)) {
       return $this->set_upload($filepath, $text, $url);
     }

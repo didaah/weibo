@@ -12,9 +12,9 @@
 function weibo_init() {
   /**
    * 根据设置，加载 api 版本，目前分两个版本，oauth1、oauth2
-   * @TODO oauth2 版本暂未实现
+   * 新浪基本已废除 oauth1，oauth1 仅保留，不再做更新
    */
-  module_include_file('weibo.' . var_get_key('weibo', 'version', 'oauth1') . '.class.inc', 'weibo');
+  module_include_file('weibo.' . var_get_key('weibo', 'version', 'oauth2') . '.class.inc', 'weibo');
 }
 
 /**

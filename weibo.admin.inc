@@ -42,7 +42,7 @@ function weibo_admin_settings(){
  
   $form['fields']['weibo']['version'] = array(
     '#title' => t('weibo', 'API 版本'),
-    '#default_value' => var_get_key('weibo', 'version', 'oauth1'),
+    '#default_value' => var_get_key('weibo', 'version', 'oauth2'),
     '#type' => 'radio',
     '#required' => 1,
     '#options' => array(
@@ -55,14 +55,12 @@ function weibo_admin_settings(){
     '#type' => 'textfield',
     '#title' => t('weibo', '新浪微博 API'),
     '#default_value' => var_get_key('weibo', 'oauth_consumer_key', NULL),
-    '#description' => t('weibo', '你可以到 http://open.t.sina.com.cn/wiki/index.php 申请，若没有，请留空')
   );
   
   $form['fields']['weibo']['oauth_consumer_secret'] = array(
     '#type' => 'textfield',
     '#title' => t('weibo', 'API 密钥'),
     '#default_value' => var_get_key('weibo', 'oauth_consumer_secret', NULL),
-    '#description' => t('weibo', '除非你自行设置了 API，否则请留空')
   );
 
   if ($infos = module_invoke_all('comment_info')) {

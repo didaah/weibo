@@ -364,7 +364,8 @@ function weibo_http_request($http_url, array $values = array(), array $headers =
   if (!function_exists('__weibo_extend_http_request')) {
     return dd_http_request($request->http_url, $request->to_data, $method, $headers);
   } else {
-    return __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, &$key);
+    $key = '';
+    return __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, $key);
   }
 }
 

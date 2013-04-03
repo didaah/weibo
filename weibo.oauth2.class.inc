@@ -2,7 +2,7 @@
 // $Id$
 
 /**
- * @file oauth1 版本的 api 文件
+ * @file oauth2 版本的 api 文件
  */
 
 /**

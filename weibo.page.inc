@@ -60,7 +60,6 @@ function _weibo_user_validate($token = NULL) {
   $api = new weibo(0, 0, $token);
   
   if ($o = $api->get_user_info()) {
-    
     $weibo = new stdClass;
     $weibo->data = array();
     $weibo->data['token'] = $token;
@@ -153,6 +152,23 @@ function _weibo_user_validate($token = NULL) {
         if (!user_ext_save($user, array($weibo))) {
           dd_set_message(t('weibo', '抱歉，微博帐号绑定失败了，<a href="!url">请重试</a>', 
           array('!url' => url('weibo/validate'))));
+        }
+
+        if ($field = field_get_cache_field_key('user', 'field', 'avatar')) {
+          // 将微博头像写入本地
+          if ($data = file_get_contents(str_replace('/50/', '/180/', $o->profile_image_url))) {
+            file_save_data($data, array(
+              'uid' => $user->uid,
+              'ext_id' => $field->field_id,
+              'ext_id2' => $user->uid,
+              'ext_type' => 'field_file',
+              'filesize' => 4096,
+              'filename' => $user->uid,
+              'title' => $user->name . '的头像',
+              'extension' => 'jpg',
+              'savepath' => 'avatar',
+            ), 0);
+          }
         }
 
         dd_set_message(t('weibo', '已为您成功创建帐号：!name，随机密码：!pass，如需从!site直接登录，请记住此密码',

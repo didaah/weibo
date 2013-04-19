@@ -277,6 +277,7 @@ class weibo {
       } else {
         dd_set_message($json->error_code . ':' . $json->error, 'error');
       }
+      $this->error = $json;
     }
   }
    

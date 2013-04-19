@@ -195,6 +195,9 @@ class weibo {
   // 微博授权信息
   public $token;
 
+  // 错误信息
+  public $error = NULL;
+
   // 授权令牌
   public $access_token = '';
 

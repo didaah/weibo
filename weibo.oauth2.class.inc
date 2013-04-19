@@ -275,12 +275,13 @@ class weibo {
         return $data;
       }
     } else if ($json = json_decode($result->data)) {
+      $this->error = $json;
       if ($json->error_code == 21327 || $json->error_code == 21332) {
+        $this->error->is_token = true;
         dd_set_message(t('weibo', '授权已过期，请通过新浪微博重新授权，' . l('点击这儿', 'weibo/validate')), 'error');
       } else {
         dd_set_message($json->error_code . ':' . $json->error, 'error');
       }
-      $this->error = $json;
     }
   }
    

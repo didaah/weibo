@@ -198,6 +198,9 @@ class weibo {
   // 错误信息
   public $error = NULL;
 
+  // http request
+  public $result = NULL;
+
   // 授权令牌
   public $access_token = '';
 
@@ -261,20 +264,20 @@ class weibo {
 
     // @TODO 新浪 api 针对单个 ip 有严格的访问限制，可自定义一个函数用来分发请求。暂时的处理办法
     if (!function_exists('__weibo_extend_http_request')) {
-      $result = dd_http_request($request->http_url, $request->to_data, $method, $headers);
+      $this->result = dd_http_request($request->http_url, $request->to_data, $method, $headers);
     } else {
-      $result = __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, $host);
+      $this->result = __weibo_extend_http_request($request->http_url, $request->to_data, $method, $headers, $host);
     }
 
-    if ($result->code == 200) {
-      $data = json_decode($result->data);
+    if ($this->result->code == 200) {
+      $data = json_decode($this->result->data);
       if (is_object($data) && !empty($data->error_code)) {
         $this->error = $data;
         $this->error->client_host = $host;
       } else {
         return $data;
       }
-    } else if ($json = json_decode($result->data)) {
+    } else if ($json = json_decode($this->result->data)) {
       $this->error = $json;
       if ($json->error_code == 21327 || $json->error_code == 21332) {
         $this->error->is_token = true;

@@ -110,7 +110,7 @@ function weibo_form_alter($form_id, $form_token, &$form) {
             'query' => 'redirect=' . (arg(0) != 'user' ? $_GET['q'] : 'user/center/weibo')
           ));
         } else if (!$form['fields']['cid']['#default_value']) {
-          weibo_tweet_get_form_alter($form, -2);
+          weibo_tweet_get_form_alter($form, -1);
         }
       }
     break;

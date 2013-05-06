@@ -170,7 +170,7 @@ function weibo_tweet_get_form_alter(&$form, $weight = 0) {
     '#type' => 'textfield',
     '#title' => t('weibo', '图片'),
     '#default_value' => '',
-    '#description' => t('weibo', '输入图片地址，发布为一条图片微博。若不需要，则留空'),
+    '#description' => t('weibo', '输入图片地址，发布为图片微博。可留空'),
   );
   
   dd_add_js(dd_get_path('module', 'weibo') .'/weibo.js');

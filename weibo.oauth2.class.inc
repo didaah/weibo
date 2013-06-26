@@ -381,7 +381,7 @@ class weibo {
     $values['boundary'] = uniqid('------------------');
 
     if ($data = $this->http_request(
-      'http://upload.api.weibo.com/2/statuses/upload.json',
+      'https://upload.api.weibo.com/2/statuses/upload.json',
       $values,
       array('Content-Type' => 'multipart/form-data; boundary=' . $values['boundary'])
     )) {

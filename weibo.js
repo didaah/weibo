@@ -5,14 +5,15 @@ $(function() {
 	function c() {
 		var _c = 140;
 		var b = $('#weibo_tweet_form_type_tweet').val() || '';
-		if (b.length < _c) {
-			_c -= b.length;
-		} else if (b.length > _c) {
-			_c -= b.length;
-		} else {
-			_c = 0;
-		}
-		$('#weibo_tweet_text_count').text(_c);
+
+    for (var i=0; i < b.length; i++) {
+      if (b.charCodeAt(i) >= 10000) {
+        _c -= 1;
+      } else {
+        _c -= 0.5;
+      }
+    }
+		$('#weibo_tweet_text_count').text(Math.floor(_c));
 	};
 	
 	c();

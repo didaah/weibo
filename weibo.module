@@ -371,16 +371,24 @@ function weibo_tweet_form_validate($form, &$v) {
  * @return string
  */
 function weibo_text_strlen($text, $url = NULL) {
-  
-  $len = isset($url) ? mb_strlen($url) : 0;
-  
-  $len = 139 - $len;
-  
-  if (mb_strlen($text) > $len) {
-    $text = mb_substr($text, 0, $len);
+  $output = $text . ' ' . $url;
+  $len = 0;
+  $strlen = mb_strlen($output);
+
+  for ($i = 0; $i < $strlen; $i++) {
+    if (ord(mb_substr($output, $i, 1)) > 128) {
+      $len += 1;
+    } else {
+      $len += 0.5;
+    }
   }
 
-  return $text . ' ' . $url;
+  $len = ceil($len);
+  if ($len > 140) {
+    $output = mb_substr($text, 0, 140-$len) . ' ' . $url;
+  }
+
+  return $output;
 }
 
 /**

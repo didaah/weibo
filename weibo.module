@@ -319,7 +319,7 @@ function weibo_tweet_form() {
   $form['fields']['tweet'] = array(
     '#type' => 'textarea',
     '#title' => t('weibo', '发布到新浪微博'),
-    '#description' => t('weibo', '最多140个字符，中英文均算一个字符。还可以输入!count个字符', array('!count' => '<strong id="weibo_tweet_text_count"></strong>')),
+    '#description' => t('weibo', '最多140个全角字符，2 个半角算为 1 个。还可以输入!count个字符', array('!count' => '<strong id="weibo_tweet_text_count"></strong>')),
     '#required' => 1,
     '#attributes' => array('rows' => 5)
   );
@@ -345,9 +345,7 @@ function weibo_tweet_form() {
 function weibo_tweet_form_validate($form, &$v) {
   $text = trim($v['tweet']);
   
-  if (mb_strlen($text) > 140) {
-    $t['tweet']['#error'][] = t('weibo', '不大于 140 个字符');
-  } else if (empty($v['aid'])) {
+  if (empty($v['aid'])) {
     $t['aid']['#error'][] = t('weibo', '请选择一个微博帐号');
   } else {
     $api = new weibo($v['uid'], $v['aid']);

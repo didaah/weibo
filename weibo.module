@@ -131,7 +131,7 @@ function weibo_tweet_get_form_alter(&$form, $weight = 0) {
   if (empty($user->ext->weibo)) return;
 
   $form['fields']['weibo'] = array(
-    '#fieldset_prefix' => 'asc',
+    '#fieldset_prefix' => 'desc',
     '#fieldset_suffix' => 1,
     '#fieldset' => true,
     '#weight' => $weight,

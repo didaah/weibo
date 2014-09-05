@@ -40,16 +40,16 @@ function weibo_admin_settings(){
     ),
   );
  
-  $form['fields']['weibo']['version'] = array(
-    '#title' => t('weibo', 'API 版本'),
-    '#default_value' => var_get_key('weibo', 'version', 'oauth2'),
-    '#type' => 'radio',
-    '#required' => 1,
-    '#options' => array(
-      'oauth1' => 'oauth1',
-      'oauth2' => 'oauth2'
-    ),
-  );
+//  $form['fields']['weibo']['version'] = array(
+//    '#title' => t('weibo', 'API 版本'),
+//    '#default_value' => var_get_key('weibo', 'version', 'oauth2'),
+//    '#type' => 'radio',
+//    '#required' => 1,
+//    '#options' => array(
+//      'oauth1' => 'oauth1',
+//      'oauth2' => 'oauth2'
+//    ),
+//  );
 
   $form['fields']['weibo']['oauth_consumer_key'] = array(
     '#type' => 'textfield',

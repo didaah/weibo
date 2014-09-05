@@ -14,7 +14,7 @@ function weibo_init() {
    * 根据设置，加载 api 版本，目前分两个版本，oauth1、oauth2
    * 新浪基本已废除 oauth1，oauth1 仅保留，不再做更新
    */
-  module_include_file('weibo.' . var_get_key('weibo', 'version', 'oauth2') . '.class.inc', 'weibo');
+  module_include_file('weibo.oauth2.class.inc', 'weibo');
 }
 
 /**
@@ -578,7 +578,6 @@ function weibo_user_center_view($center) {
  * @return array
  */
 function weibo_cache_get_emotions($type = 'face', $lang = 'cnname') {
-
   $key = 'weibo_emotions_' . $type . '_' . $lang;
   if ($cache = cache_get($key)) {
     return $cache->data;

@@ -411,6 +411,8 @@ class weibo {
 
     if (!empty($uid)) $values['uid'] = $uid;
     
+    if (empty($values['source'])) $values['source'] = var_get_key('weibo', 'oauth_consumer_key');
+    
     return $this->http_request('https://api.weibo.com/2/statuses/user_timeline.json', $values, array(), 'GET');
   }
 

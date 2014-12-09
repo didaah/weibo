@@ -704,7 +704,10 @@ class weibo {
    * @return object
    */
   public function get_public_timeline($count = 200) {
-    return $this->http_request('https://api.weibo.com/2/statuses/public_timeline.json', array('count' => $count), array(), 'GET'); 
+    return $this->http_request('https://api.weibo.com/2/statuses/public_timeline.json', array(
+      'count' => $count,
+      'source' => var_get_key('weibo', 'oauth_consumer_key')
+    ), array(), 'GET'); 
   } 
 
   /**
